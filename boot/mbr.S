@@ -1,7 +1,7 @@
 %include "boot.inc"
 ; mbr 主引导程序
 SECTION MBR vstart=0x7c00
-    mov ax, cs
+    mov ax, cs      
     mov ds, ax
     mov ss, ax
     mov es, ax
@@ -42,7 +42,7 @@ SECTION MBR vstart=0x7c00
 ; 准备从硬盘读入loader
     mov eax, LOADER_START_SECTOR   ;起始扇区LBA地址
     mov bx, LOADER_BASE_ADDR       ;写入的内存地址
-    mov cx,1                      ;待读入的扇区数
+    mov cx, 4                      ;待读入的扇区数 这里读入4个扇区 (loader比较大)
     call rd_disk_m_16             ;以下读取程序的起始部分（一个扇区）
     jmp LOADER_BASE_ADDR
 
