@@ -99,25 +99,25 @@ rd_disk_m_16:
 ; | 2 | CORR (Corrected)    | 数据纠错 | 一般忽略        
 ; | 1 | IDX (Index)         | 索引     | 基本不用        
 ; | 0 | ERR (Error)         | 错误发生 | `1=命令失败`    
+    mov cx, di          ; 外层循环：扇区数
+.read_sector:
+    push cx ; 保存外层循环索引 cx
 .disk_not_ready:
     nop
     mov dx, 0x1f7
     in al, dx
-    ; 检查硬盘是否可读写以及是否处于忙状态
-    and al, 0x88; 10001000
-    cmp al, 0x08; 00001000
-    jnz .disk_not_ready ; 若硬盘就绪且可以读写则往下执行否则持续等待
-    ; ========== 从 0x1f0 端口读数据
-    mov ax, di ; di 是保存的扇区数
-    mov dx, 0x100
-    mul dx
-    mov cx, ax ; 一次读入一个字，需读 扇区数*512/2 次 
+    and al, 0x88  ; 10001000
+    cmp al, 0x08  ; 00001000 硬盘不忙且可以读写数据
+    jnz .disk_not_ready  ; 等待当前扇区就绪
+    mov cx, 0x100          ; 内层：读256个字 = 512字节, 读一个扇区
     mov dx, 0x1f0
 .continue_read:
     in ax, dx
     mov [bx], ax
     add bx, 2
-    loop .continue_read ; loop 次数由 cx 控制
+    loop .continue_read
+    pop cx
+    loop .read_sector
     ret
 
     times 510-($-$$) db 0 ;填充到510字节

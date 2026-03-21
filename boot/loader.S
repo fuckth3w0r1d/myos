@@ -36,6 +36,7 @@ gdt_ptr dw GDT_LIMIT    ;define word
 
 loader_start:
     ; ========= 准备进入保护模式 
+    cli         ; 关闭中断, 因为进入保护模式后 BIOS 的中断向量表不再有效, 如果发生时钟中断则有可能导致异常现象
     ; ===== 打开A20
     in al, 0x92 ; 0x92 是 A20 地址线的控制端口
     or al, 0000_0010B
@@ -60,6 +61,7 @@ p_mode_start:
     mov gs, ax
 
     mov byte [gs:0x10], 'p' ; 打印提示表明程序顺利执行到这了
+    mov byte [gs:0x11], 0x0F
 
     jmp $
 
