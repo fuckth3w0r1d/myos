@@ -2,7 +2,8 @@
 section loader vstart=LOADER_BASE_ADDR
 LOADER_STACK_TOP equ LOADER_BASE_ADDR 
 ; ============ 从 mbr 接管，跳转到 loader_start
-jmp loader_start
+jmp loader_start  ; 这条指令长 3 字节
+times 0x8-($-$$) db 0 ; 对齐到 8 字节方便后续数据的访问
 
 ; ============== 构建gdt及其内部描述符
 ;  63                56 55 52 51 48 47 45 44 43           40 39        32
@@ -30,12 +31,123 @@ SELECTOR_CODE equ (0x0001<<3) + TI_GDT + RPL0   ;相当于(CODE_DESC - GDT_BASE)
 SELECTOR_DATA equ (0x0002<<3) + TI_GDT + RPL0   ;同上类似
 SELECTOR_VIDEO equ (0x0003<<3) + TI_GDT + RPL0   ;同上类似
   
-; ========= 定义gdt的指针，前2字节是gdt的界限，后4字节是gdt的起始地址 ---------
+; ========= 定义gdt的指针，前2字节是gdt的界限，后4字节是gdt的起始地址
 gdt_ptr dw GDT_LIMIT    ;define word
         dd GDT_BASE
 
+
+; =========== ARDS 结构体示例
+; struct ARDS {
+;     uint64_t BaseAddr;   // 基地址
+;     uint64_t Length;     // 长度
+;     uint32_t Type;       // 类型
+; };
+
+; =========== ards_buf 用于做 ards 结构体的缓存区
+ards_buf times (0x300-2)-($-$$) db 0 ;这个 buf 的偏移是 LOADER_BASE_ADDR + 0x20e, 这下面又定义2字节的ards_nr, 所以对齐一下让后续的total_mem_bytes恰好偏移0x300
+ards_nr dw 0        ;用于记录 ards 结构体的数量
+
+; =========== total_mem_bytes用于保存内存容量
+;将来在内核中我们会引用到这个地址，偏移 LOADER_BASE_ADDR + 0x300
+total_mem_bytes dd 0
+
 loader_start:
-    ; ========= 准备进入保护模式 
+    ; ======== int 0x15 eax = 0xe820, edx = 534D4150('SMAP') 获取内存布局
+    ; | 调用或返回 | 寄存器/标志 | 参数         | 用途        
+    ; | 调用前输入 | EAX    | 0xE820           | 子功能号      
+    ; | 调用前输入 | EBX    | 0（第一次）       | ARDS 后续值  
+    ; | 调用前输入 | ECX    | 20（或更大）      | ARDS 结构大小 
+    ; | 调用前输入 | EDX    | 0x534D4150       | “SMAP”签名  
+    ; | 调用前输入 | ES:DI  | 缓冲区地址        | 接收 ARDS   
+    ; | 返回后输出 | 寄存器/标志 | 参数         | 用途      
+    ; | 返回后输出 | CF     | 0=成功，1=失败    | 调用状态   
+    ; | 返回后输出 | EAX    | 0x534D4150       | 校验签名    
+    ; | 返回后输出 | ES:DI  | ARDS 结构        | 已填充内存信息 
+    ; | 返回后输出 | ECX    | ≥20              | 实际写入字节数 
+    ; | 返回后输出 | EBX    | 下一个 ARDS      | 为0表示结束  
+    xor ebx, ebx ; 初次 ebx 置零
+    mov edx, 0x534d4150
+    mov di, ards_buf ; 获取到的内存信息写入准备好的 ards_buf
+    .e820_mem_get_loop:
+    mov eax, 0x0000e820   ;每次执行int 0x15之后，eax会变成0x534d4150,所以每次执行int之前都要更新为子功能号
+    mov ecx, 20 ;ards结构大小为 20 字节
+    int 0x15
+    jc .e820_failed_so_try_e801 ; 如果发生错误则尝试 0xe801 子功能
+    add di, cx ; 跳过ards_buf中已经写入的内存信息
+    inc word[ards_nr] ; 记录 ards 结构数量
+    cmp ebx, 0  ;若ebx为0且cf不为1,这说明ards全部返回
+    jnz .e820_mem_get_loop
+    mov cx, word[ards_nr] ; 遍历所有 ards 结构, cx 赋值为ards数量
+    mov ebx, ards_buf ; ebx 指向 ards_buf
+    xor edx, edx      ; edx 存储最大内存容量，先清零
+    .find_max_mem_area:
+    mov eax, [ebx]
+    add eax, [ebx+8] ; eax = BaseAddrLow + LengthLow, 为内存大小
+    add ebx, 20 ; ebx 指向下一个 ards
+    cmp edx, eax ; 比较
+    jge .next_ards        ;大于或等于
+    mov edx, eax          ; 当前内存大小(eax) 更大则更新 edx 为更大的内存大小
+    .next_ards:
+    loop .find_max_mem_area ;循环，以cx为循环次数
+    jmp .mem_get_ok
+
+    ; ========= int 0x15 ax=0xe801 , 获取内存大小，最大支持4G
+    ; | 调用或返回 | 寄存器/标志 | 参数          | 用途   |
+    ; | 调用前输入 | AX         | 0xE801        | 子功能号 
+    ; | 返回后输出 | 寄存器/标志 | 参数                     | 用途          
+    ; | 返回后输出 | CF         | 0=成功，1=失败            | 状态          
+    ; | 返回后输出 | AX         | 1MB~16MB 内存（KB为单位） | 低端扩展内存      
+    ; | 返回后输出 | BX         | 同 AX（备用）             | 有些 BIOS 用这个 
+    ; | 返回后输出 | CX         | 16MB以上内存（64KB为单位） | 高端内存        
+    ; | 返回后输出 | DX         | 同 CX（备用）             | 有些 BIOS 用这个 
+    .e820_failed_so_try_e801:
+    mov ax, 0xe801
+    int 0x15
+    jc .e801_failed_so_try88  ;若cf位为1则说明有错误发生，尝试下一个88方法
+    ; == 先算出低15MB的内存
+    ; ax和cx中是以KB为单位的内存数量，因此我们将其转换为以byte为单位
+    mov cx, 0x400  
+    mul cx        ;由于处于实模式，所以mul指令是ax × cx，生成乘数高16位在dx中，低16位存于ax中
+    shl edx, 16   
+    and eax, 0x0000ffff   
+    or edx, eax   ;将乘积保存至edx中
+    add edx, 0x100000 ;80286 拥有 24 位地址线，其寻址空间是 16MB。当时有一些 ISA 设备要用15MB~16MB作为缓冲区，操作系统不可以用此段内存空间。只是为了兼容，现在加回来
+    mov esi, edx      ;这里保存一下edx的值，后续计算乘法 edx 会被破坏
+    ; == 再将16MB以上的内存转换为byte为单位
+    xor eax, eax
+    mov ax, bx
+    mov ecx, 0x10000  ;0x10000为16进制的64K
+    mul ecx           ;32位乘法，其高32位和低32位存放在edx和eax中
+    add esi, eax      ;由于这里只能最大测出4GB，edx的值肯定为0，所以咱们只需要eax就可以了
+    mov edx, esi      ;edx为总内存大小
+    jmp .mem_get_ok
+
+    ; ========= int 15h ah=0x88 获取内存大小，只能获取64MB之内
+    ; | 调用或返回 | 寄存器/标志 | 参数   | 用途   
+    ; | 调用前输入 | AH         | 0x88   | 子功能号
+    ; | 返回后输出 | 寄存器/标志 | 参数             | 用途     
+    ; | 返回后输出 | CF         | 0=成功，1=失败    | 状态     
+    ; | 返回后输出 | AX         | 1MB以上内存（KB） | 扩展内存大小 
+    .e801_failed_so_try88:
+    ;int 15h后，ax存入的是以KB为单位的内存容量
+    mov ah, 0x88
+    int 0x15
+    jc .error_hlt ; 如果连这个最后的 0x88 子功能也失败，则直接挂起
+    and eax, 0x0000ffff
+    ;16位乘法
+    mov cx, 0x400
+    mul cx
+    shl edx, 16
+    or edx, eax
+    add edx, 0x100000  ; 0x88子功能只会返回1MB以上的内存，所以最终我们还需要加上1MB
+    .error_hlt:
+    jmp $ ;挂起
+
+    ; =========== 内存信息获取成功
+    .mem_get_ok:
+    mov [total_mem_bytes], edx            ;将内存大小换为bytes为单位(已经在edx中)，存入total_mem_bytes
+
+    ; =========== 准备进入保护模式 
     cli         ; 关闭中断, 因为进入保护模式后 BIOS 的中断向量表不再有效, 如果发生时钟中断则有可能导致异常现象
     ; ===== 打开A20
     in al, 0x92 ; 0x92 是 A20 地址线的控制端口
@@ -47,7 +159,7 @@ loader_start:
     mov eax, cr0
     or eax, 0x00000001
     mov cr0, eax
-    ; ====== 已经进入保护模式
+    ; ========== 已经进入保护模式
     jmp dword SELECTOR_CODE:p_mode_start ; 刷新流水线 使用dword(32位)防止保护模式下执行这条指令导致地址编码错误
 
 [bits 32]
@@ -60,9 +172,100 @@ p_mode_start:
     mov ax, SELECTOR_VIDEO ; 初始化显存基址寄存器
     mov gs, ax
 
-    mov byte [gs:0x10], 'p' ; 打印提示表明程序顺利执行到这了
+    mov byte [gs:0x10], 'P' ; 打印提示表明顺利进入保护模式
     mov byte [gs:0x11], 0x0F
 
+    ; ================== 准备进入虚拟地址空间
+    ; ==== 创建页目录及页表
+    call setup_page
+
+    ; ==== 将描述符表地址及偏移量写入内存 gdt_ptr 后续用虚拟地址重新加载
+    sgdt [gdt_ptr]      ; 使用sgdt更新gdt_ptr是为了确保不出错（虽然原来已经自己定义好了）
+
+    mov ebx, [gdt_ptr + 2]        ;加上2是因为gdt_ptr的低2字节是偏移量，高四字节才是GDT地址
+    or dword [ebx + 0x18 + 4], 0xc0000000   
+    ;段描述符高四字节的最高位是段基址的第31～24位
+
+    ;将gdt的基址加上0xc0000000使其成为内核所在的高地址
+    add dword [gdt_ptr + 2], 0xc0000000
+    
+    add esp, 0xc0000000   ;将栈指针同样映射到内核地址
+
+    ;把页目录地址附给cr3
+    mov eax, PAGE_DIR_TABLE_POS
+    mov cr3, eax
+
+    ;=打开cr0的pg位（第31位）
+    mov eax, cr0
+    or eax, 0x80000000
+    mov cr0, eax
+
+    ;在开启分页后，用gdt新的地址重新加载
+    lgdt [gdt_ptr]    ;重新加载GDT
+
+    mov byte [gs:0x20], 'V' ; 打印提示表明顺利开启分页进入虚拟地址空间
+    mov byte [gs:0x21], 0x0F
+
     jmp $
+
+
+
+
+
+
+
+    setup_page:
+    ; 虚拟地址32位划分
+    ; [10位][10位][12位]
+    ; ↓     ↓     ↓
+    ; 目录   页表   页内偏移
+
+    ; ==== 先把页目录表占用的空间逐字节清0
+    mov ecx, 0x1000     
+    mov esi, 0
+    .clear_page_dir:
+    mov byte [PAGE_DIR_TABLE_POS + esi], 0
+    inc esi
+    loop .clear_page_dir
+    ; ==== 开始创建内核地址空间最低4MB的页目录项(PDE)
+    .create_pde:
+    mov eax, PAGE_DIR_TABLE_POS
+    add eax, 0x1000 ;页目录表本身占用0x1000大小，+0x1000就是第一个页表的物理地址
+    mov ebx, eax    ;此处为ebx赋值， 是为.create_pte做准备， ebx为基址
+    or eax, PG_US_U | PG_RW_W | PG_P ;页目录项的属性RW和P位为1,US为1表示用户属性，所有特权级都可以访问
+    mov [PAGE_DIR_TABLE_POS + 0x0], eax       ;第一个目录项
+    ; 将物理地址的最低的 4MB 映射到虚拟地址最低的 4MB, 为了在开启分页后loader能够继续正常执行
+    mov [PAGE_DIR_TABLE_POS + 0xc00], eax     ;一个页目录项占用4字节, +0xc00对应第0x300个页目录项
+    ; 一个页目录项对应一张页表，一张页表大小0x1000字节, 一个页表项4字节, 共记录0x400页, 一页大小也是0x1000
+    ; 那么第0x300个页目录项也就对应地址 0x300*0x400*0x1000 = 0xc0000000(内核地址的起始) 开始的 4MB 内存
+    ; 也就将物理地址的最低的 4MB 映射到了虚拟地址空间中 内核地址最低的 4MB 
+    sub eax, 0x1000
+    mov [PAGE_DIR_TABLE_POS + 4092], eax      ;使得最后一个目录项地址指向页目录表自己的地址
+
+    ; ==== 开始创建内核地址空间最低4MB对应的页表项(PTE)
+    mov ecx, 256                  ;1M低端内存/每页大小4K = 256, 因为物理地址最低的4MB只使用最低的1MB内存来存放kernel, 所以内核地址对应的的页表只需创建 256 页
+    mov esi, 0                    ;虚拟地址0x0～0x3fffff和虚拟地址0xc0000000~0xc03fffff对应的物理页，现在只用了低1MB，此时虚拟地址是等于物理地址的
+    mov edx, PG_US_U | PG_RW_W | PG_P     ; 页表属性。注意进入循环前第一页物理地址是0起始，所以直接用属性赋值即可
+    .create_pte:    ;创建Page Table Entry
+    mov [ebx + esi*4], edx    ;ebx为第一个页表的首地址，此前已赋值
+    add edx, 0x1000 ; 下一页
+    inc esi
+    loop .create_pte
+
+    ; ==== 创建内核地址空间其他页面的PDE (内核占用1GB, 此前只创建了最低的4MB的PDE)
+    mov eax, PAGE_DIR_TABLE_POS 
+    add eax, 0x2000       ;此时eax为第二张页表的物理地址
+    or eax, PG_US_U | PG_RW_W | PG_P  ;页表属性
+    mov ebx, PAGE_DIR_TABLE_POS 
+    mov ecx, 254          ;范围为第0x301～0x3fe的所有页目录项数量(第0x3ff项是页目录表自身的物理地址)
+    mov esi, 769
+    .create_kernel_pde:
+    mov [ebx+esi*4], eax
+    inc esi
+    add eax, 0x1000 ; 下一张页表
+    loop .create_kernel_pde
+    ; 至此就将整个内核地址空间(1GB)都映射到了物理地址最低的1GB
+    ret
+
 
 ; dd if=./loader.bin of=./hd60M.img bs=512 count=4 seek=2 conv=notrunc
