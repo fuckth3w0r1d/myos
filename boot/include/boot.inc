@@ -103,3 +103,6 @@ PG_RW_R equ 00b
 PG_RW_W equ 10b
 PG_US_S equ 000b
 PG_US_U equ 100b 
+
+; ============== ELF 文件头相关属性
+PT_NULL equ 0x0

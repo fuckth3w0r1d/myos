@@ -175,6 +175,12 @@ p_mode_start:
     mov byte [gs:0x10], 'P' ; 打印提示表明顺利进入保护模式
     mov byte [gs:0x11], 0x0F
 
+    ; ================= 从硬盘读入 kernel
+    mov eax, KERNEL_START_SECTOR ;kernel.bin所在的扇区号
+    mov ebx, KERNEL_BIN_BASE_ADDR     ;从磁盘读出后，写入到ebx指定的地址
+    mov ecx, 200                      ;读入的扇区数
+    call rd_disk_m_32                 
+
     ; ================== 准备进入虚拟地址空间
     ; ==== 创建页目录及页表
     call setup_page
@@ -206,14 +212,157 @@ p_mode_start:
     mov byte [gs:0x20], 'V' ; 打印提示表明顺利开启分页进入虚拟地址空间
     mov byte [gs:0x21], 0x0F
 
+    ; =============== 进入kernel运行, loader任务结束
+    ;这里是因为一直处于32位之下，但是为了以防万一所以还是加上一个流水线刷新
+    jmp SELECTOR_CODE:enter_kernel        ;强制刷新流水线，更新gdt
+    enter_kernel:
+    call kernel_init
+    mov esp, 0xc009f000   ; 设置内核栈
+    jmp KERNEL_ENTRY_POINT        ;进入内核
+
     jmp $
+; =========
+; =========
+; =========
+; =========
+
+    ; ================= 将kernel.bin中的segment拷贝到编译的地址
+    kernel_init:   
+    xor eax, eax
+    xor ebx, ebx      ;ebx用来记录程序头表地址
+    xor ecx, ecx      ;cx记录程序头表中的program header 数量
+    xor edx, edx      ;dx记录program header的尺寸，即e_phentsize
+
+    ; kernel.bin与此前的 mbr 和 loader 不同，它是一个 ELF 文件而非纯二进制文件
+    ; typedef struct {
+    ;     unsigned char e_ident[16]; /* ELF标识 */
+    ;     uint16_t e_type;           /* 文件类型 */
+    ;     uint16_t e_machine;        /* 目标架构 */
+    ;     uint32_t e_version;        /* ELF版本 */
+    ;     uint32_t e_entry;          /* 程序入口虚拟地址 */
+    ;     uint32_t e_phoff;          /* 程序头表文件偏移 */
+    ;     uint32_t e_shoff;          /* 节头表文件偏移 */
+    ;     uint32_t e_flags;          /* 处理器相关标志 */
+    ;     uint16_t e_ehsize;         /* ELF头大小 */
+    ;     uint16_t e_phentsize;      /* 程序头表项大小 */
+    ;     uint16_t e_phnum;          /* 程序头表项数量 */
+    ;     uint16_t e_shentsize;      /* 节头表项大小 */
+    ;     uint16_t e_shnum;          /* 节头表项数量 */
+    ;     uint16_t e_shstrndx;       /* 节名字符串表索引 */
+    ; } Elf32_Ehdr;
+
+    ; typedef struct {
+    ;     uint32_t p_type;   /* 段类型 */
+    ;     uint32_t p_offset; /* 段在文件中的偏移 */
+    ;     uint32_t p_vaddr;  /* 段的虚拟地址 */
+    ;     uint32_t p_paddr;  /* 段的物理地址（通常忽略） */
+    ;     uint32_t p_filesz; /* 段在文件中的大小 */
+    ;     uint32_t p_memsz;  /* 段在内存中的大小 */
+    ;     uint32_t p_flags;  /* 段标志（读/写/执行） */
+    ;     uint32_t p_align;  /* 对齐 */
+    ; } Elf32_Phdr;
+
+    mov dx, [KERNEL_BIN_BASE_ADDR + 42]   ;e_phentsize
+    mov ebx, [KERNEL_BIN_BASE_ADDR + 28]  ;e_phoff
+    add ebx, KERNEL_BIN_BASE_ADDR 
+    mov cx, [KERNEL_BIN_BASE_ADDR + 44]   ;e_phnum
+
+    .each_segment:
+    cmp byte [ebx + 0], PT_NULL   ;若p_type等于PT_NULL,说明此program未使用
+    je .PTNULL
+    ;为函数memcpyu压入参数，参数从右往左依次压入
+    ;函数原型类似于memcpy(dst, src, size)
+    push dword [ebx + 16]     ;program header中偏移16字节的地方是p_filesz,传入size参数
+    mov eax, [ebx + 4]        ;p_offset
+    add eax, KERNEL_BIN_BASE_ADDR     ;此时eax就是该段的物理地址(此前我们做了内核地址的同时映射)
+    push eax                  ;压入mem_cpy的第二个参数，源地址
+    push dword [ebx + 8]      ;压入mem_cpy的第一个参数，目的地址，p_vaddr
+    call mem_cpy
+    add esp, 12               ;清理栈中压入的三个参数
+    .PTNULL:
+    add ebx, edx              ;edx为program header的尺寸，这里就是跳入下一个描述符
+    loop .each_segment 
+    ret
+
+    ; =========== 逐字节拷贝 mem_cpy(dst, src, size)
+    ;输入：栈中三个参数
+    ;输出：无
+    mem_cpy:
+    cld                       ;控制eflags寄存器中DF = 0， 使得movsb指令向前递增拷贝
+    push ebp
+    mov ebp, esp  ;构造栈帧
+    push ecx      ;rep指令用到了ecx，但ecx对于外层段的循环还有用，所以入栈备份
+    mov edi, [ebp + 8]        ;dst
+    mov esi, [ebp + 12]       ;src
+    mov ecx, [ebp + 16]       ;size
+    rep movsb                 ;逐字节拷贝,其中movs代表move string，其中源地址保存在esi，目的地址保存在edi中，其中edi和esi肯定会一直增加，而这个增加的功能由cld指令实现
+    ;这里的rep指令是repeat的意思，就是重复执行movsb，循环次数保存在ecx中
+
+    ;恢复环境
+    pop ecx                   ;因为外层ecx保存的是程序段数量，这里又要用作size，所以进行恢复
+    pop ebp
+    ret
 
 
+    ; ========================= 从硬盘读取数据, 同 mbr.S 中读取loader使用的函数, 只不过在保护模式进行
+    rd_disk_m_32:  
+    ;eax = 扇区LBA地址
+    ;ebx = 将数据写入的内存地址
+    ;ecx = 读入的扇区数
+    ; ======== 保存参数
+    mov esi, eax
+    mov edi, ecx
+    ; ======== 设置读取的扇区数
+    mov dx, 0x1f2  ; 0x1f2 是硬盘控制器的扇区计数寄存器端口
+    mov al, cl
+    out dx, al
+    ; 恢复eax
+    mov eax, esi
+    ; ========= 将LBA地址写入端口
+    ; 低8位
+    mov dx, 0x1f3
+    out dx, al
+    ; 中8位
+    mov dx, 0x1f4
+    shr eax, 8
+    out dx, al
+    ; 次高8位
+    mov dx, 0x1f5
+    shr eax, 8
+    out dx, al
+    ; 最高4位和设备编码（各4位） 
+    mov dx, 0x1f6
+    shr eax, 8
+    and al, 0x0f
+    or al, 0xe0 ; 1110 表示LBA模式
+    out dx, al
+    ; ========== 向0x1f7端口写入读命令 0x20
+    mov dx, 0x1f7
+    mov al, 0x20
+    out dx, al
+    ; ========= 开始循环读取
+    mov ecx, edi          ; 外层循环：扇区数
+    .read_sector:
+    push ecx ; 保存外层循环索引 cx
+    .disk_not_ready:
+    nop
+    mov dx, 0x1f7
+    in al, dx
+    and al, 0x88  ; 10001000
+    cmp al, 0x08  ; 00001000 硬盘不忙且可以读写数据
+    jnz .disk_not_ready  ; 等待当前扇区就绪
+    mov ecx, 0x100          ; 内层：读256个字 = 512字节, 读一个扇区
+    mov dx, 0x1f0
+    .continue_read:
+    in ax, dx
+    mov [ebx], ax
+    add ebx, 2
+    loop .continue_read
+    pop ecx
+    loop .read_sector
+    ret
 
-
-
-
-
+    ; =================================== 创建内核页表和页目录表
     setup_page:
     ; 虚拟地址32位划分
     ; [10位][10位][12位]
@@ -266,6 +415,3 @@ p_mode_start:
     loop .create_kernel_pde
     ; 至此就将整个内核地址空间(1GB)都映射到了物理地址最低的1GB
     ret
-
-
-; dd if=./loader.bin of=./hd60M.img bs=512 count=4 seek=2 conv=notrunc

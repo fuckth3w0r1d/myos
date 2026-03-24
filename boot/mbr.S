@@ -39,7 +39,7 @@ SECTION MBR vstart=0x7c00
     mov byte [gs:0x04],'R'
     mov byte [gs:0x05],0x0F
 
-; 准备从硬盘读入loader
+; ======== 准备从硬盘读入loader
     mov eax, LOADER_START_SECTOR   ;起始扇区LBA地址
     mov bx, LOADER_BASE_ADDR       ;写入的内存地址
     mov cx, 4                      ;待读入的扇区数 这里读入4个扇区 (loader比较大)
@@ -58,6 +58,9 @@ SECTION MBR vstart=0x7c00
 
 
 rd_disk_m_16:
+    ;eax = 扇区LBA地址
+    ;ebx = 将数据写入的内存地址
+    ;ecx = 读入的扇区数
     ; ======== 保存参数
     mov esi, eax
     mov di, cx
@@ -122,5 +125,3 @@ rd_disk_m_16:
 
     times 510-($-$$) db 0 ;填充到510字节
     db 0x55, 0xaa ; magic number 用于检测是否为可启动扇区
-
-;dd if=./mbr.bin of=./hd60M.img bs=512 count=1 conv=notrunc
