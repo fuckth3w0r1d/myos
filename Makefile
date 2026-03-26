@@ -1,6 +1,5 @@
 # ===== 工具链 =====
 BUILD_DIR = ./build
-ENTRY_POINT = 0xc0001500
 AS = nasm
 CC = gcc
 LD = ld
@@ -8,45 +7,53 @@ LD = ld
 # ===== 参数 =====
 LIB = -I lib/ -I lib/kernel/ -I kernel/
 
-# ASFLAGS = -f elf (此参数在mbr和loader完全完成后加入)
-CFLAGS = -Wall $(LIB) -c -fno-builtin -m32 -fno-stack-protector \
-         -W -Wstrict-prototypes -Wmissing-prototypes
+ASFLAGS = -f elf
+CFLAGS = -Wall $(LIB) -m32 \
+    -ffreestanding \
+    -fno-builtin \
+    -fno-stack-protector \
+    -fno-pic -fno-pie \
+    -fno-asynchronous-unwind-tables \
+    -fno-unwind-tables \
+    -fno-exceptions \
+    -fno-ident \
+    -nostdlib -nostartfiles -nodefaultlibs \
+    -Wall -Wextra \
+    -Wstrict-prototypes -Wmissing-prototypes \
+    -O2 -g -c
 
-LDFLAGS = -m elf_i386 -Ttext $(ENTRY_POINT) -e main
+LDFLAGS = -m elf_i386 \
+   -T linker.ld \
+   -nostdlib \
+   -z noexecstack \
+   -Map build/kernel.map
 
-# ===== 目标文件 =====
-KERNEL_OBJ = $(BUILD_DIR)/main.o
-KERNEL_BIN = $(BUILD_DIR)/kernel.bin
-MBR_BIN    = $(BUILD_DIR)/mbr.bin
-LOADER_BIN = $(BUILD_DIR)/loader.bin
+# ===== 确保 build 目录存在
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
 
-# ===== 默认目标 =====
-all : mk_dir $(MBR_BIN) $(LOADER_BIN) $(KERNEL_BIN)
+# ===== 所有目标文件 =====
+OBJS = $(BUILD_DIR)/main.o $(BUILD_DIR)/print.o
 
-# ===== 创建目录 =====
-mk_dir:
-	if [ ! -d $(BUILD_DIR) ];then mkdir $(BUILD_DIR);fi
+# ===== 编译汇编文件
+$(BUILD_DIR)/print.o : lib/kernel/print.S
+	$(AS) $(ASFLAGS) $< -o $@
 
-# ===== boot ===== (这一部分在mbr和loader完全完成后删除)
-$(MBR_BIN): boot/mbr.S
-	$(AS) -I boot/include/ -o $@ $<
-
-$(LOADER_BIN): boot/loader.S
-	$(AS) -I boot/include/ -o $@ $<
-
-# ===== kernel =====
-$(KERNEL_OBJ): kernel/main.c
+# ===== 编译 C  =====
+$(BUILD_DIR)/main.o: kernel/main.c
 	$(CC) $(CFLAGS) $< -o $@
 
-$(KERNEL_BIN): $(KERNEL_OBJ)
-	$(LD) $(LDFLAGS) $< -o $@
+# ===== 链接所有目标文件
+$(BUILD_DIR)/kernel.bin : $(OBJS)
+	$(LD) $(LDFLAGS) $^ -o $@ 	
 
-# ===== 写入虚拟磁盘 =====
-hd:
-	dd if=$(MBR_BIN) of=vdisk.img bs=512 count=1 conv=notrunc
-	dd if=$(LOADER_BIN) of=vdisk.img bs=512 count=4 seek=2 conv=notrunc
-	dd if=$(KERNEL_BIN) of=vdisk.img bs=512 count=200 seek=9 conv=notrunc
+build: $(BUILD_DIR)/kernel.bin
 
-# ===== 清理 =====
+vd:
+	dd if=$(BUILD_DIR)/kernel.bin of=vdisk.img bs=512 count=200 seek=9 conv=notrunc
+
 clean:
-	find $(BUILD_DIR) -mindepth 1 -delete
+	rm -rf $(BUILD_DIR)/*
+
+all: build vd
+
