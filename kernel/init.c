@@ -1,9 +1,11 @@
 #include "init.h"
 #include "print.h"
 #include "interrupt.h"
+#include "timer.h"
 
-void initAll(void)
+void init(void)
 {
-  put_str("init All\n");
-  initInterrupt();      //初始化中断
+    print("init All\n");
+    _init_interrupt();      // 初始化中断
+    _init_timer();          // 初始化时钟
 }

@@ -44,8 +44,8 @@ section .data
 put_int_buffer dq 0  ; 8 字节缓冲区
 section .text
 ; ================= 打印单字符函数
-global put_char
-put_char:
+global _put_char
+_put_char:
     push ebp
     mov ebp, esp
     pushad  ; 将 32 位通用寄存器全部压栈 后续使用 popad 恢复
@@ -155,8 +155,8 @@ put_char:
     ret
 
 ; =================== 打印字符串函数
-global put_str
-put_str:
+global _put_str
+_put_str:
     push ebp
     mov ebp, esp
     push ebx           ;此函数只用到了ebx和ecx
@@ -168,7 +168,7 @@ put_str:
     cmp cl, 0                 ;若这里为0则说明到了字符串末尾
     jz .str_over
     push ecx                  ;为put_char函数传递参数
-    call put_char
+    call _put_char
     add esp, 4                ;清理栈中参数
     inc ebx
     jmp .go_on
@@ -179,9 +179,9 @@ put_str:
     leave
     ret
 
-; =================== 打印整数函数
-global put_uint
-put_uint:
+; =================== 打印无符号整数函数
+global _put_uint
+_put_uint:
     push ebp
     mov ebp, esp
     pushad
@@ -190,7 +190,7 @@ put_uint:
     mov edi, 7 ; buffer 初始偏移量, 从最后一个开始写
     mov ecx, 8        ;32位数据中16位数据占8位
     mov ebx, put_int_buffer
-
+    ; ======= 转 ascii
     .hex_to_ascii:     ;每4位二进制是十六进制的1位
     and edx, 0x0000000f   ;解析十六进制的每一位
     cmp edx, 9        ;数字0～9和a~f分别处理成 ascii 码
@@ -208,30 +208,64 @@ put_uint:
     mov edx, eax      ; 更新一下edx中待处理参数
     loop .hex_to_ascii
 
+    ; ======= 去除前导 0
     .ready_to_print:
     inc edi           ;此时edi为-1（0xFFFFFFFF），加一变为0
     .skip_prefix_0:
     cmp edi, 8        ;若已经比较到第9个字符了则表示待打印字符串全为0
     je .full0
-    ;找出连续的0字符，edi作为非0的最高位字符的偏移
+    ; 去除前导0后edi作为非0的最高位字符的偏移
     .go_on_skip:
     mov cl, [put_int_buffer + edi]
     inc edi
     cmp cl, '0'
     je .skip_prefix_0 ;继续判断下一个字符
     dec edi           ;由于edi指向的是下一个字符，所以这里得减一是的edi指向当前不为0字符
+    ; ======== 输出 0x 前缀
+    push dword '0'
+    call _put_char
+    add esp, 4
+    push dword 'x'
+    call _put_char
+    add esp, 4
     jmp .put_each_num
 
+    ; ========== 输出数字
     .full0:
     mov cl, '0'       ;输入全为0,则只打因0
     .put_each_num:
     push ecx          ;此时cl中为可打印字符
-    call put_char
+    call _put_char
     add esp, 4        ;清理栈中参数
     inc edi
     mov cl, [put_int_buffer + edi]
     cmp edi, 8
     jl .put_each_num
+    popad
+    leave
+    ret
+
+; ======================= 打印有符号整数函数
+global _put_int
+_put_int:
+    push ebp
+    mov ebp, esp
+    pushad
+    mov eax, [ebp + 8] ; 获取参数
+    cmp eax, 0
+    jge .positive
+    ; ===== 负数处理
+    mov cl, '-'          ; 先输出负号
+    push ecx
+    call _put_char
+    add esp, 4
+    not eax
+    inc eax              ; 再取绝对值（按位取反再加一）
+    ; ====== 统一走无符号输出
+    .positive:
+    push eax
+    call _put_uint
+    add esp, 4
     popad
     leave
     ret

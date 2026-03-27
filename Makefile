@@ -5,7 +5,7 @@ CC = gcc
 LD = ld
 
 # ===== 参数 =====
-LIB = -I lib/ -I lib/kernel/ -I kernel/ -I kernel/include/
+LIB = -I lib/ -I lib/kernel/ -I kernel/include/ -I device/include/
 
 ASFLAGS = -f elf
 CFLAGS = -Wall $(LIB) -m32 \
@@ -33,7 +33,8 @@ $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
 # ===== 所有目标文件 =====
-OBJS = $(BUILD_DIR)/main.o $(BUILD_DIR)/print.o $(BUILD_DIR)/kernel.o $(BUILD_DIR)/interrupt.o $(BUILD_DIR)/init.o
+OBJS = $(BUILD_DIR)/main.o $(BUILD_DIR)/print.o $(BUILD_DIR)/kernel.o $(BUILD_DIR)/interrupt.o $(BUILD_DIR)/init.o \
+    $(BUILD_DIR)/timer.o $(BUILD_DIR)/debug.o
 
 # ===== 编译汇编文件
 $(BUILD_DIR)/print.o : lib/kernel/print.S
@@ -52,6 +53,12 @@ $(BUILD_DIR)/interrupt.o: kernel/interrupt.c
 $(BUILD_DIR)/init.o: kernel/init.c
 	$(CC) $(CFLAGS) $< -o $@
 
+$(BUILD_DIR)/timer.o: device/timer.c
+	$(CC) $(CFLAGS) $< -o $@
+
+$(BUILD_DIR)/debug.o: kernel/debug.c
+	$(CC) $(CFLAGS) $< -o $@
+
 # ===== 链接所有目标文件
 $(BUILD_DIR)/kernel.bin : $(OBJS)
 	$(LD) $(LDFLAGS) $^ -o $@
@@ -64,4 +71,4 @@ vd:
 clean:
 	rm -rf $(BUILD_DIR)/*
 
-all: build vd
+all: build

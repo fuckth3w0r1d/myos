@@ -2,13 +2,12 @@
 %define ERROR_CODE nop     ; 若在相关的异常中CPU已经自动压入了错误码，这里不做操作
 %define ZERO push 0        ; 定义默认的压入错误码操作
 
-extern put_str
-extern intrHandler_table
+extern IntrHandlerTable
 
 section .data
 
-global intr_entry_table
-intr_entry_table:
+global _intr_entry_table
+_intr_entry_table:
     %macro VECTOR 2             ;这里定义一个多行宏作为 intr_handler，后面的2是指传递两个参数,里面的%1,%2代表参数
     section .text
     intr%1entry:
@@ -28,7 +27,7 @@ intr_entry_table:
     out dx, al                ; 向主片发送
     ; ============= 压入中断向量号并调用中断处理函数
     push %1
-    call [intrHandler_table + %1*4]
+    call [IntrHandlerTable + %1*4]
     jmp intr_exit
     ; ============= intr_entry_table数组(编译后会将相同的section合并成一个段)
     section .data
