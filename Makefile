@@ -5,7 +5,7 @@ CC = gcc
 LD = ld
 
 # ===== 参数 =====
-LIB = -I lib/ -I lib/kernel/ -I kernel/include/ -I device/include/
+LIB = -I lib/ -I kernel/include/ -I device/include/
 
 ASFLAGS = -f elf
 CFLAGS = -Wall $(LIB) -m32 \
@@ -34,7 +34,8 @@ $(BUILD_DIR):
 
 # ===== 所有目标文件 =====
 OBJS = $(BUILD_DIR)/main.o $(BUILD_DIR)/print.o $(BUILD_DIR)/kernel.o $(BUILD_DIR)/interrupt.o $(BUILD_DIR)/init.o \
-    $(BUILD_DIR)/timer.o $(BUILD_DIR)/debug.o
+    $(BUILD_DIR)/timer.o $(BUILD_DIR)/debug.o $(BUILD_DIR)/string.o $(BUILD_DIR)/bitmap.o $(BUILD_DIR)/memory.o \
+    $(BUILD_DIR)/memfunc.o
 
 # ===== 编译汇编文件
 $(BUILD_DIR)/print.o : lib/kernel/print.S
@@ -57,6 +58,18 @@ $(BUILD_DIR)/timer.o: device/timer.c
 	$(CC) $(CFLAGS) $< -o $@
 
 $(BUILD_DIR)/debug.o: kernel/debug.c
+	$(CC) $(CFLAGS) $< -o $@
+
+$(BUILD_DIR)/string.o: lib/string.c
+	$(CC) $(CFLAGS) $< -o $@
+
+$(BUILD_DIR)/memfunc.o: lib/memfunc.c
+	$(CC) $(CFLAGS) $< -o $@
+
+$(BUILD_DIR)/bitmap.o: lib/kernel/bitmap.c
+	$(CC) $(CFLAGS) $< -o $@
+
+$(BUILD_DIR)/memory.o: kernel/memory.c
 	$(CC) $(CFLAGS) $< -o $@
 
 # ===== 链接所有目标文件

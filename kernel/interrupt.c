@@ -1,8 +1,8 @@
 #include "interrupt.h"
 #include "global.h"
 #include "stdint.h"
-#include "io.h"
-#include "print.h"
+#include "kernel/io.h"
+#include "kernel/print.h"
 
 #define IDT_DESC_CNT 0x21           //目前总支持的中断数
 #define PIC_M_CTRL 0x20             //主片控制端口
@@ -14,7 +14,7 @@
 #define GET_EFLAGS(EFLAG_VAR) asm volatile("pushfl\n\t pop %0" : "=g" (EFLAG_VAR))   //pushfl是指将eflags寄存器值压入栈顶
 
 // 中断描述符结构体
-struct IntrDesc{
+struct _intr_desc{
     uint16_t func_offset_low_word;    // 中断处理函数地址低16位
     uint16_t selector;                // 代码段选择子
     uint8_t zero;                    // 不用考虑，必须为0
@@ -23,7 +23,7 @@ struct IntrDesc{
 };
 
 // 定义 IDT
-static struct IntrDesc IDT[IDT_DESC_CNT];  //idt是中断描述符表，本质上是中断描述符数组
+static struct _intr_desc IDT[IDT_DESC_CNT];  //idt是中断描述符表，本质上是中断描述符数组
 
 char* IntrName[IDT_DESC_CNT];              //用于保存中断的名字
 _intr_handler_ptr IntrHandlerTable[IDT_DESC_CNT];       //定义中断处理程序地址数组
@@ -53,7 +53,7 @@ static void _init_PIC(void)
 }
 
 // 创建中断描述符
-static void _make_IntrDesc(struct IntrDesc* p_gdesc, uint8_t attr, _intr_handler_ptr function)
+static void _make_IntrDesc(struct _intr_desc* p_gdesc, uint8_t attr, _intr_handler_ptr function)
 {  //参数分别为，描述符地址，属性，中断程序入口
     p_gdesc->func_offset_low_word = (uint32_t)function & 0x0000FFFF;
     p_gdesc->selector = SELECTOR_K_CODE;  // 内核代码
@@ -74,13 +74,13 @@ static void _init_IDT(void)
 
 
 // 通用的中断处理函数，一般用在出现异常的时候处理
-static void _intr_handler_default(uint64_t vec_nr)
+static void _intr_handler_default(uint32_t vec_nr)
 {
     // IRQ7和IRQ15会产生伪中断，IRQ15是从片上最后一个引脚，保留项，这俩都不需要处理
     if(vec_nr == 0x27 || vec_nr == 0x2f) return;
-    print("int vector : 0x");       //这里仅实现一个打印中断号的功能
+    print("int vector :");       //这里仅实现一个打印中断号的功能
     print(vec_nr);
-    print('\n');
+    print("\n");
 }
 
 
@@ -168,7 +168,7 @@ void _init_interrupt(void)
     _init_PIC();               //初始化8259A
 
     // 加载 IDT
-    uint64_t idt_operand = (sizeof(IDT)-1) | ((uint64_t)((uint32_t)IDT << 16));   //这里(sizeof(IDT)-1)是表示段界限，占16位，然后我们的idt地址左移16位表示高32位，表示idt首地址
+    uint64_t idt_operand = (sizeof(IDT)-1) | ((uint64_t)(uint32_t)IDT << 16);   //这里(sizeof(IDT)-1)是表示段界限，占16位，然后我们的idt地址左移16位表示高32位，表示idt首地址
     asm volatile("lidt %0" : : "m" (idt_operand));
     print("init interrupt all done\n");
 }
