@@ -78,11 +78,35 @@ static void _intr_handler_default(uint32_t vec_nr)
 {
     // IRQ7和IRQ15会产生伪中断，IRQ15是从片上最后一个引脚，保留项，这俩都不需要处理
     if(vec_nr == 0x27 || vec_nr == 0x2f) return;
-    print("int vector :");       //这里仅实现一个打印中断号的功能
-    print(vec_nr);
-    print("\n");
+    // 将光标置为0,从屏幕左上角清出一片打印异常信息的区域方便阅读
+    set_cursor(0);    //这里是print.S中的设置光标函数，光标值范围是0～1999
+    int cursor_pos = 0;
+    while(cursor_pos < 320)
+    {
+        print(" ");
+        cursor_pos++;
+    }
+    set_cursor(0);    //重置光标值
+    print("!!!!!!!!  exception message begin  !!!!!!!!");
+    set_cursor(88);    //从第二行第8个字符开始打印
+    print(IntrName[vec_nr]);
+    if(vec_nr == 14)
+    {   //若为PageFault,将缺失的地址打印出来并悬停
+        uint32_t page_fault_vaddr = 0;
+        asm("movl %%cr2, %0" : "=r"(page_fault_vaddr));     //cr2存放造成PageFault的地址
+        print("\npage fault addr is ");
+        print(page_fault_vaddr);
+    }
+    print("\n!!!!!!!!   exception message end !!!!!!!");
+    // 能进入中断处理程序就表示已经在关中断情况下了，不会出现调度进程的情况，因此下面的死循环不会被中断
+    while(1);
 }
 
+// 在中断处理程序数组第vec_num个元素中注册安装中断处理程序function
+void _register_intr_handler(uint8_t vec_num, _intr_handler_ptr function)
+{
+    IntrHandlerTable[vec_num] = function;
+}
 
 static void _init_intr_handler_table(void)
 {

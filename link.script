@@ -1,0 +1,14 @@
+ENTRY(main)
+
+PHDRS
+{
+    kernel PT_LOAD FLAGS(5);
+}
+
+SECTIONS
+{
+    . = 0xc0001500;
+
+    .text : { *(.text*) *(.rodata*) } :kernel
+    .data : { *(.data*) *(.bss*) *(COMMON) } :kernel
+}

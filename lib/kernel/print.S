@@ -269,3 +269,29 @@ _put_int:
     popad
     leave
     ret
+
+
+global set_cursor
+set_cursor:
+    push ebp
+    mov ebp, esp
+    pushad
+    mov bx, [ebp+8]
+    ; ===== 先设置高8位
+    mov dx, 0x03d4
+    mov al, 0x0e
+    out dx, al
+    mov dx, 0x03d5
+    mov al, bh
+    out dx, al
+
+    ; ===== 再设置低8位
+    mov dx, 0x03d4
+    mov al, 0x0f
+    out dx, al
+    mov dx, 0x03d5
+    mov al, bl
+    out dx, al
+    popad
+    leave
+    ret

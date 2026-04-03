@@ -17,4 +17,6 @@ void _put_int(int32_t num);
     default: _put_str \
 )(x)
 
+void set_cursor(uint32_t cursor_pos);
+
 #endif

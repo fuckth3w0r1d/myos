@@ -22,7 +22,7 @@ int _scan_bitmap(struct bitmap* btmp, uint32_t cnt)
 {
     uint32_t byte_idx = 0;                    //记录空闲位所在的字节
     // 逐字节比较, 先找到第一个空闲位
-    while((0xff == btmp->bits[byte_idx]) && (byte_idx < btmp->bytes_len))
+    while((byte_idx < btmp->bytes_len) && (0xff == btmp->bits[byte_idx]))
     {
         byte_idx++;
     }

@@ -218,7 +218,8 @@ p_mode_start:
     enter_kernel:
     call kernel_init
     mov esp, 0xc009f000   ; 设置内核栈
-    jmp KERNEL_ENTRY_POINT        ;进入内核
+    mov eax, [KERNEL_BIN_BASE_ADDR + 24]   ; 取 kernel ELF头的 e_entry 即内核入口点
+    jmp eax        ;进入内核
 
     jmp $
 ; =========
@@ -391,7 +392,7 @@ p_mode_start:
     mov [PAGE_DIR_TABLE_POS + 4092], eax      ;使得最后一个目录项地址指向页目录表自己的地址
 
     ; ==== 开始创建内核地址空间最低1MB对应的页表项(PTE), 实际映射到物理地址最低的1MB
-    mov ecx, 256                  ;1M低端内存/每页大小4K = 256, 因为物理地址最低的4MB只使用最低的1MB内存来存放kernel, 所以内核地址对应的的页表只需创建 256 页
+    mov ecx, 256                  ;1M低端内存/每页大小4K = 256, 因为物理地址最低的4MB只使用最低的1MB内存来存放kernel
     mov esi, 0                    ;虚拟地址0x0～0x3fffff和虚拟地址0xc0000000~0xc03fffff对应的物理页，现在只用了低1MB，此时虚拟地址是等于物理地址的
     mov edx, PG_US_U | PG_RW_W | PG_P     ; 页表属性。注意进入循环前第一页物理地址是0起始，所以直接用属性赋值即可
     .create_pte:    ;创建Page Table Entry

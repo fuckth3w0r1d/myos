@@ -5,7 +5,7 @@ CC = gcc
 LD = ld
 
 # ===== 参数 =====
-LIB = -I lib/ -I kernel/include/ -I device/include/
+LIB = -I lib/ -I kernel/include/
 
 ASFLAGS = -f elf
 CFLAGS = -Wall $(LIB) -m32 \
@@ -23,7 +23,7 @@ CFLAGS = -Wall $(LIB) -m32 \
     -O2 -g -c
 
 LDFLAGS = -m elf_i386 \
-   -T linker.ld \
+   -T link.script \
    -nostdlib \
    -z noexecstack \
    -Map build/kernel.map
@@ -35,7 +35,7 @@ $(BUILD_DIR):
 # ===== 所有目标文件 =====
 OBJS = $(BUILD_DIR)/main.o $(BUILD_DIR)/print.o $(BUILD_DIR)/kernel.o $(BUILD_DIR)/interrupt.o $(BUILD_DIR)/init.o \
     $(BUILD_DIR)/timer.o $(BUILD_DIR)/debug.o $(BUILD_DIR)/string.o $(BUILD_DIR)/bitmap.o $(BUILD_DIR)/memory.o \
-    $(BUILD_DIR)/memfunc.o
+    $(BUILD_DIR)/memfunc.o $(BUILD_DIR)/thread.o $(BUILD_DIR)/list.o $(BUILD_DIR)/switch.o
 
 # ===== 编译汇编文件
 $(BUILD_DIR)/print.o : lib/kernel/print.S
@@ -44,17 +44,20 @@ $(BUILD_DIR)/print.o : lib/kernel/print.S
 $(BUILD_DIR)/kernel.o : kernel/kernel.S
 	$(AS) $(ASFLAGS) $< -o $@
 
+$(BUILD_DIR)/switch.o : kernel/thread/switch.S
+	$(AS) $(ASFLAGS) $< -o $@
+
 # ===== 编译 C  =====
 $(BUILD_DIR)/main.o: kernel/main.c
 	$(CC) $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/interrupt.o: kernel/interrupt.c
+$(BUILD_DIR)/interrupt.o: kernel/interrupt/interrupt.c
 	$(CC) $(CFLAGS) $< -o $@
 
 $(BUILD_DIR)/init.o: kernel/init.c
 	$(CC) $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/timer.o: device/timer.c
+$(BUILD_DIR)/timer.o: kernel/device/timer.c
 	$(CC) $(CFLAGS) $< -o $@
 
 $(BUILD_DIR)/debug.o: kernel/debug.c
@@ -69,7 +72,13 @@ $(BUILD_DIR)/memfunc.o: lib/memfunc.c
 $(BUILD_DIR)/bitmap.o: lib/kernel/bitmap.c
 	$(CC) $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/memory.o: kernel/memory.c
+$(BUILD_DIR)/memory.o: kernel/memory/memory.c
+	$(CC) $(CFLAGS) $< -o $@
+
+$(BUILD_DIR)/thread.o: kernel/thread/thread.c
+	$(CC) $(CFLAGS) $< -o $@
+
+$(BUILD_DIR)/list.o: lib/kernel/list.c
 	$(CC) $(CFLAGS) $< -o $@
 
 # ===== 链接所有目标文件
