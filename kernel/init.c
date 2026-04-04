@@ -5,6 +5,7 @@
 #include "memory.h"
 #include "thread.h"
 #include "console.h"
+#include "keyboard.h"
 
 void init(void)
 {
@@ -14,5 +15,6 @@ void init(void)
     _init_mem();            // 初始化内存
     _init_thread();          // 初始化线程
     _init_console();        // 初始化控制台
+    _init_keyboard();       // 初始化键盘
     print("init all done\n");
 }
