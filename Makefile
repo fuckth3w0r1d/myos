@@ -35,7 +35,8 @@ $(BUILD_DIR):
 # ===== 所有目标文件 =====
 OBJS = $(BUILD_DIR)/main.o $(BUILD_DIR)/print.o $(BUILD_DIR)/kernel.o $(BUILD_DIR)/interrupt.o $(BUILD_DIR)/init.o \
     $(BUILD_DIR)/timer.o $(BUILD_DIR)/debug.o $(BUILD_DIR)/string.o $(BUILD_DIR)/bitmap.o $(BUILD_DIR)/memory.o \
-    $(BUILD_DIR)/memfunc.o $(BUILD_DIR)/thread.o $(BUILD_DIR)/list.o $(BUILD_DIR)/switch.o
+    $(BUILD_DIR)/memfunc.o $(BUILD_DIR)/thread.o $(BUILD_DIR)/list.o $(BUILD_DIR)/switch.o $(BUILD_DIR)/sync.o \
+	$(BUILD_DIR)/console.o
 
 # ===== 编译汇编文件
 $(BUILD_DIR)/print.o : lib/kernel/print.S
@@ -79,6 +80,12 @@ $(BUILD_DIR)/thread.o: kernel/thread/thread.c
 	$(CC) $(CFLAGS) $< -o $@
 
 $(BUILD_DIR)/list.o: lib/kernel/list.c
+	$(CC) $(CFLAGS) $< -o $@
+
+$(BUILD_DIR)/console.o: kernel/device/console.c
+	$(CC) $(CFLAGS) $< -o $@
+
+$(BUILD_DIR)/sync.o: kernel/thread/sync.c
 	$(CC) $(CFLAGS) $< -o $@
 
 # ===== 链接所有目标文件

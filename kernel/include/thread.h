@@ -79,5 +79,7 @@ void thread_init_stack(struct _task_struct* pthread, thread_func function, void*
 void thread_init_info(struct _task_struct* pthread, char* name, int prio);
 struct _task_struct* thread_create(char* name, int prio, thread_func function, void* func_arg);
 void task_schedule(void);
+void thread_block(enum _task_status stat);
+void thread_unblock(struct _task_struct* pthread);
 void _init_thread(void);
 #endif

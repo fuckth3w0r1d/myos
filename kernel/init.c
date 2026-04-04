@@ -4,6 +4,7 @@
 #include "timer.h"
 #include "memory.h"
 #include "thread.h"
+#include "console.h"
 
 void init(void)
 {
@@ -12,5 +13,6 @@ void init(void)
     _init_timer();          // 初始化时钟
     _init_mem();            // 初始化内存
     _init_thread();          // 初始化线程
+    _init_console();        // 初始化控制台
     print("init all done\n");
 }

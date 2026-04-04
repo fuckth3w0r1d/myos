@@ -26,8 +26,8 @@ struct _task_struct* running_thread(void)
     return (struct _task_struct*)(esp & 0xfffff000); //这里因为我们PCB肯定是放在一个页最低端，所以这里取栈所在页面起始地址就行
 }
 
-// 由kernel_thread去执行function(func_arg)
-static void kernel_thread(thread_func* function, void* func_arg)
+// 由thread_start去执行function(func_arg)
+static void thread_start(thread_func* function, void* func_arg)
 {
     //开中断，避免后面的时钟中断被屏蔽，而无法调度其他程序
     _enable_intr();
@@ -43,7 +43,7 @@ void thread_init_stack(struct _task_struct* pthread, thread_func function, void*
     pthread->self_kstack = (uint32_t*)((uint8_t*)pthread->self_kstack - sizeof(struct _thread_stack));
     // 初始化栈中内容
     struct _thread_stack* kthread_stack = (struct _thread_stack*)pthread->self_kstack;
-    kthread_stack->eip = kernel_thread;
+    kthread_stack->eip = thread_start;
     kthread_stack->function = function;
     kthread_stack->func_arg = func_arg;
     kthread_stack->ebp = kthread_stack->ebx = kthread_stack->esi = kthread_stack->edi = 0;
@@ -115,12 +115,43 @@ void task_schedule(void)
     }
     ASSERT(!list_empty(&thread_ready_list));
     thread_tag = NULL;    //将thread_tag清空
-    // 将thread_ready_list队列中的地一个就绪线程弹出，准备调入CPU运行
+    // 将thread_ready_list队列中的一个就绪线程弹出，准备调入CPU运行
     thread_tag = list_pop(&thread_ready_list);
     struct _task_struct* next = elem2entry(struct _task_struct, general_tag, thread_tag);
     next->status = TASK_RUNNING;
     switch_task(cur, next);
 }
+
+// 当前线程将自己阻塞，标志其状态为stat
+void thread_block(enum _task_status stat)
+{   // stat取值为TASK_BLOCKED,TASK_WAITING,TASK_HANGING才不会被调度
+    ASSERT(((stat == TASK_BLOCKED) || (stat == TASK_WAITING) || (stat == TASK_HANGING)));
+    _intr_status old_status = _disable_intr();
+    struct _task_struct* cur_thread = running_thread();
+    cur_thread->status = stat;    //设置状态为stat
+    task_schedule();                   //将当前线程换下处理器
+    // 待当前线程被解除阻塞后才会继续运行
+    _set_intr_status(old_status);
+}
+
+// 将线程pthread解除阻塞
+void thread_unblock(struct _task_struct* pthread)
+{
+    _intr_status old_status = _disable_intr();
+    ASSERT(((pthread->status == TASK_BLOCKED) || (pthread->status == TASK_WAITING) || (pthread->status == TASK_HANGING)));
+    if(pthread->status != TASK_READY)
+    {
+        ASSERT(!elem_find(&thread_ready_list, &pthread->general_tag));
+        if(elem_find(&thread_ready_list, &pthread->general_tag))
+        {
+            PANIC("thread unblock: blocked thread in ready_list\n");
+        }
+        list_push(&thread_ready_list, &pthread->general_tag);   //放到队列首，使得其尽快被调度
+        pthread->status = TASK_READY;
+    }
+    _set_intr_status(old_status);
+}
+
 
 // 初始化线程环境
 void _init_thread(void)
