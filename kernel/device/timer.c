@@ -32,7 +32,7 @@ static void _set_freq(uint8_t counter_port, uint8_t counter_no, uint8_t rwl, uin
 static void _timer_intr_handler(void)
 {
     struct _task_struct* cur_thread = running_thread();
-    ASSERT(cur_thread->stack_magic == 0xdeadbeef);    //检查栈是否溢出
+    ASSERT(cur_thread->canary == (uint32_t)0xdeadbeef);    //检查栈是否溢出
     cur_thread->elapsed_ticks++;          //记录此线程占用的CPU时间
     ticks++;                              //从内核开启时间中断后开始至今的tick数，内核态和用户态总共的tick数
     if(cur_thread->ticks == 0)

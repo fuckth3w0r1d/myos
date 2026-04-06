@@ -3,14 +3,7 @@
 #include "stdint.h"
 #include "kernel/bitmap.h"
 
-// 物理内存池结构，生成两个实例用于管理内核内存池和用户内存池
-struct _pm_pool{
-    struct bitmap pool_bitmap;    //本内存池用到的位图结构，用于管理内存
-    uint32_t paddr_start;      //本内存池的物理起始地址
-    uint32_t pool_size;
-};
-
-// 虚拟内存池结构，生成一个实例用于管理内核虚拟内存
+// 虚拟内存池结构，生成一个实例用于管理内核虚拟内存，同时每个用户进程都会有一个实例
 struct _vm_pool{
     struct bitmap pool_bitmap;    //本内存池用到的位图结构，用于管理内存
     uint32_t vaddr_start;      //本内存池的虚拟起始地址
@@ -28,8 +21,12 @@ typedef _Bool _mem_pool_flag;
 #define PG_US_S 0   //U/S属性位值，系统级
 #define PG_US_U 4   //U/S属性位值，用户级
 
-void* _valloc_p(_mem_pool_flag pf, uint32_t pg_cnt);
+#define PG_SIZE 4096
+
 void* alloc_kernel_pages(uint32_t pg_cnt);
+void* alloc_user_pages(uint32_t pg_cnt);
+void* map_page(_mem_pool_flag pf, uint32_t vaddr);
+uint32_t vaddr2paddr(uint32_t vaddr);
 void _init_mem(void);
 
 #endif

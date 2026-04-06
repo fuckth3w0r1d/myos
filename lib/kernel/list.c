@@ -44,6 +44,9 @@ void list_remove(struct list_elem* pelem)
     _intr_status old_status = _disable_intr();
     pelem->prev->next = pelem->next;
     pelem->next->prev = pelem->prev;
+    // 清指针
+    pelem->prev = NULL;
+    pelem->next = NULL;
     _set_intr_status(old_status);
 }
 

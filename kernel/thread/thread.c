@@ -6,6 +6,7 @@
 #include "memory.h"
 #include "memfunc.h"
 #include "interrupt.h"
+#include "process.h"
 #include "kernel/print.h"
 #include "debug.h"
 
@@ -50,7 +51,7 @@ void thread_init_stack(struct _task_struct* pthread, thread_func function, void*
 }
 
 // 初始化线程基本信息
-void thread_init_info(struct _task_struct* pthread, char* name, int prio)
+void thread_init_info(struct _task_struct* pthread, char* name, uint8_t prio)
 {
     memset(pthread, 0, sizeof(*pthread));
     strcpy(pthread->name, name);
@@ -66,11 +67,11 @@ void thread_init_info(struct _task_struct* pthread, char* name, int prio)
     pthread->ticks = prio;
     pthread->elapsed_ticks = 0;
     pthread->pgdir = NULL;
-    pthread->stack_magic = 0xdeadbeef;    //自定义魔数
+    pthread->canary = 0xdeadbeef;    //自定义魔数
 }
 
 // 创建一优先级为prio的线程，线程名为name，线程所执行的函数是function(func_arg)
-struct _task_struct* thread_create(char* name, int prio, thread_func function, void* func_arg)
+struct _task_struct* thread_create(char* name, uint8_t prio, thread_func function, void* func_arg)
 {
     // 申请一页来放 pcb
     struct _task_struct* thread = alloc_kernel_pages(1);
@@ -119,6 +120,9 @@ void task_schedule(void)
     thread_tag = list_pop(&thread_ready_list);
     struct _task_struct* next = elem2entry(struct _task_struct, general_tag, thread_tag);
     next->status = TASK_RUNNING;
+    // 激活进程页表或者恢复内核线程页表, 更新tss中的esp0
+    update_pt_tss(next);
+    // 切换任务
     switch_task(cur, next);
 }
 

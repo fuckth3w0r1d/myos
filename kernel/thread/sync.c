@@ -31,9 +31,10 @@ void sema_down(struct semaphore* psema)
         {
             PANIC("sema_down: thread blocked has been in waiters_list\n");
         }
-        // 若信号量的值等于0,则将自己加入该锁的等待队列中，然后阻塞自己
+        // 若信号量的值等于0,则将自己加入该锁的等待队列中
         list_append(&psema->waiters, &running_thread()->general_tag);
-        thread_block(TASK_BLOCKED);     //阻塞自己，直到被唤醒,这里会调度别的线程，所以不必担心关中断
+        // 阻塞自己，直到被唤醒
+        thread_block(TASK_BLOCKED); //这里会调度别的线程，如果是新线程调用thread_start会开中断，如果是之前执行过的线程则会恢复到其中断状态，所以不用担心中断被关闭
     }
     // 若value为1或被唤醒之后，会执行下面代码，也就是获得了锁
     psema->value--;
