@@ -64,6 +64,7 @@ struct _thread_stack{
 // 进程或线程的控制块
 struct _task_struct{
     uint32_t* self_kstack;        //各内核线程都用自己的内核栈，这个成员指向栈顶
+    pid_t pid;
     enum _task_status status;
     char name[16];
     uint8_t priority;             //线程优先级

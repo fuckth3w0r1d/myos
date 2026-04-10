@@ -7,6 +7,7 @@
 #include "console.h"
 #include "keyboard.h"
 #include "tss.h"
+#include "syscall-init.h"
 
 void init(void)
 {
@@ -18,5 +19,6 @@ void init(void)
     _init_console();        // 初始化控制台
     _init_keyboard();       // 初始化键盘
     _init_tss();            // 初始化 tss
+    _init_syscall();         // 初始化 syscall
     print("init all done\n");
 }

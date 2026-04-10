@@ -9,6 +9,7 @@
 #include "process.h"
 #include "kernel/print.h"
 #include "debug.h"
+#include "sync.h"
 
 #define PG_SIZE 4096
 struct _task_struct* main_thread;    //主线程PCB
@@ -17,6 +18,18 @@ struct list thread_all_list;        //所有任务队列
 static struct list_elem* thread_tag;    //用于保存队列中的线程结点
 
 extern void switch_task(struct _task_struct* cur, struct _task_struct* next);
+
+struct lock pid_lock;
+
+// 分配pid
+static pid_t alloc_pid(void)
+{
+    static pid_t next_pid = 0;
+    lock_acquire(&pid_lock);
+    next_pid++;
+    lock_release(&pid_lock);
+    return next_pid;
+}
 
 // 获取当前线程PCB指针
 struct _task_struct* running_thread(void)
@@ -54,6 +67,7 @@ void thread_init_stack(struct _task_struct* pthread, thread_func function, void*
 void thread_init_info(struct _task_struct* pthread, char* name, uint8_t prio)
 {
     memset(pthread, 0, sizeof(*pthread));
+    pthread->pid = alloc_pid();
     strcpy(pthread->name, name);
     if(pthread == main_thread)
     {// 由于把main函数也封装成一个线程，并且他是一直运行的，故将其直接设为TASK_RUNNING
@@ -163,6 +177,7 @@ void _init_thread(void)
     print("init thread start\n");
     list_init(&thread_ready_list);
     list_init(&thread_all_list);
+    lock_init(&pid_lock);
     // 将当前main函数创建为线程
     make_main_thread();
     print("init thread done\n");

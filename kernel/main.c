@@ -9,12 +9,15 @@
 #include "keyboard.h"
 #include "kernel/ioqueue.h"
 #include "process.h"
+#include "user/syscall.h"
+#include "syscall-init.h"
 
 void k_thread_a(void*);     //自定义线程函数
 void k_thread_b(void*);
 void u_prog_a(void);
 void u_prog_b(void);
-volatile int test_var_a = -1, test_var_b = -1;
+
+volatile int prog_a_pid = 0, prog_b_pid = 0;
 
 int main(void)
 {
@@ -22,10 +25,10 @@ int main(void)
    init();
    // char* strA = " thread_A_";
    // char* strB = " thread_B_";
-   thread_create("testA", 31, k_thread_a, NULL);
-   thread_create("testB", 31, k_thread_b, NULL);
    process_execute(u_prog_a, "user_prog_a");
    process_execute(u_prog_b, "user_prog_b");
+   thread_create("testA", 31, k_thread_a, NULL);
+   thread_create("testB", 31, k_thread_b, NULL);
    _enable_intr();
    while(1);
    // {
@@ -36,22 +39,26 @@ int main(void)
 
 void k_thread_a(void* arg)
 {
-   //char* para = arg;
+   (void)arg;
    while(1)
    {
-      console_put("v_a:");
-      console_put(test_var_a);
-      console_put("   ");
+      console_put("p_a:");
+      console_put(prog_a_pid);
+      console_put("p_b:");
+      console_put(prog_b_pid);
+      console_put("\n");
    }
 }
 void k_thread_b(void* arg)
 {
-   //char* para = arg;
+   (void)arg;
    while(1)
    {
-      console_put("v_b:");
-      console_put(test_var_b);
-      console_put("   ");
+      console_put("p_a:");
+      console_put(prog_a_pid);
+      console_put("p_b:");
+      console_put(prog_b_pid);
+      console_put("\n");
    }
 }
 
@@ -59,7 +66,7 @@ void u_prog_a(void)
 {
    while(1)
    {
-      test_var_a++;
+      prog_a_pid = getpid();
    }
 }
 
@@ -67,6 +74,6 @@ void u_prog_b(void)
 {
    while(1)
    {
-      test_var_b++;
+      prog_b_pid = getpid();
    }
 }

@@ -5,7 +5,7 @@ CC = gcc
 LD = ld
 
 # ===== 参数 =====
-LIB = -I lib/ -I kernel/include/
+LIB = -I lib/ -I kernel/ -I device/ -I thread/ -I userprog/
 
 ASFLAGS = -f elf
 CFLAGS = -Wall $(LIB) -m32 \
@@ -36,7 +36,8 @@ $(BUILD_DIR):
 OBJS = $(BUILD_DIR)/main.o $(BUILD_DIR)/print.o $(BUILD_DIR)/kernel.o $(BUILD_DIR)/interrupt.o $(BUILD_DIR)/init.o \
     $(BUILD_DIR)/timer.o $(BUILD_DIR)/debug.o $(BUILD_DIR)/string.o $(BUILD_DIR)/bitmap.o $(BUILD_DIR)/memory.o \
     $(BUILD_DIR)/memfunc.o $(BUILD_DIR)/thread.o $(BUILD_DIR)/list.o $(BUILD_DIR)/switch.o $(BUILD_DIR)/sync.o \
-	$(BUILD_DIR)/console.o $(BUILD_DIR)/keyboard.o $(BUILD_DIR)/ioqueue.o $(BUILD_DIR)/process.o $(BUILD_DIR)/tss.o
+	$(BUILD_DIR)/console.o $(BUILD_DIR)/keyboard.o $(BUILD_DIR)/ioqueue.o $(BUILD_DIR)/process.o $(BUILD_DIR)/tss.o \
+	$(BUILD_DIR)/syscall.o $(BUILD_DIR)/syscall-init.o
 
 # ===== 编译汇编文件
 $(BUILD_DIR)/print.o : lib/kernel/print.S
@@ -45,20 +46,20 @@ $(BUILD_DIR)/print.o : lib/kernel/print.S
 $(BUILD_DIR)/kernel.o : kernel/kernel.S
 	$(AS) $(ASFLAGS) $< -o $@
 
-$(BUILD_DIR)/switch.o : kernel/thread/switch.S
+$(BUILD_DIR)/switch.o : thread/switch.S
 	$(AS) $(ASFLAGS) $< -o $@
 
 # ===== 编译 C  =====
 $(BUILD_DIR)/main.o: kernel/main.c
 	$(CC) $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/interrupt.o: kernel/interrupt/interrupt.c
+$(BUILD_DIR)/interrupt.o: kernel/interrupt.c
 	$(CC) $(CFLAGS) $< -o $@
 
 $(BUILD_DIR)/init.o: kernel/init.c
 	$(CC) $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/timer.o: kernel/device/timer.c
+$(BUILD_DIR)/timer.o: device/timer.c
 	$(CC) $(CFLAGS) $< -o $@
 
 $(BUILD_DIR)/debug.o: kernel/debug.c
@@ -73,31 +74,37 @@ $(BUILD_DIR)/memfunc.o: lib/memfunc.c
 $(BUILD_DIR)/bitmap.o: lib/kernel/bitmap.c
 	$(CC) $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/memory.o: kernel/memory/memory.c
+$(BUILD_DIR)/memory.o: kernel/memory.c
 	$(CC) $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/thread.o: kernel/thread/thread.c
+$(BUILD_DIR)/thread.o: thread/thread.c
 	$(CC) $(CFLAGS) $< -o $@
 
 $(BUILD_DIR)/list.o: lib/kernel/list.c
 	$(CC) $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/console.o: kernel/device/console.c
+$(BUILD_DIR)/console.o: device/console.c
 	$(CC) $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/sync.o: kernel/thread/sync.c
+$(BUILD_DIR)/sync.o: thread/sync.c
 	$(CC) $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/keyboard.o: kernel/device/keyboard.c
+$(BUILD_DIR)/keyboard.o: device/keyboard.c
 	$(CC) $(CFLAGS) $< -o $@
 
 $(BUILD_DIR)/ioqueue.o: lib/kernel/ioqueue.c
 	$(CC) $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/tss.o: kernel/process/tss.c
+$(BUILD_DIR)/tss.o: userprog/tss.c
 	$(CC) $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/process.o: kernel/process/process.c
+$(BUILD_DIR)/process.o: userprog/process.c
+	$(CC) $(CFLAGS) $< -o $@
+
+$(BUILD_DIR)/syscall-init.o: userprog/syscall-init.c
+	$(CC) $(CFLAGS) $< -o $@
+
+$(BUILD_DIR)/syscall.o: lib/user/syscall.c
 	$(CC) $(CFLAGS) $< -o $@
 
 # ===== 链接所有目标文件

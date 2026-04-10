@@ -8,39 +8,25 @@
 │   │   └── boot.inc
 │   ├── loader.S
 │   └── mbr.S
+├── device
+│   ├── console.c
+│   ├── console.h
+│   ├── keyboard.c
+│   ├── keyboard.h
+│   ├── timer.c
+│   └── timer.h
 ├── kernel
 │   ├── debug.c
-│   ├── device
-│   │   ├── console.c
-│   │   ├── keyboard.c
-│   │   └── timer.c
-│   ├── include
-│   │   ├── console.h
-│   │   ├── debug.h
-│   │   ├── global.h
-│   │   ├── init.h
-│   │   ├── interrupt.h
-│   │   ├── keyboard.h
-│   │   ├── memory.h
-│   │   ├── process.h
-│   │   ├── sync.h
-│   │   ├── thread.h
-│   │   ├── timer.h
-│   │   └── tss.h
+│   ├── debug.h
+│   ├── global.h
 │   ├── init.c
-│   ├── interrupt
-│   │   └── interrupt.c
+│   ├── init.h
+│   ├── interrupt.c
+│   ├── interrupt.h
 │   ├── kernel.S
 │   ├── main.c
-│   ├── memory
-│   │   └── memory.c
-│   ├── process
-│   │   ├── process.c
-│   │   └── tss.c
-│   └── thread
-│       ├── switch.S
-│       ├── sync.c
-│       └── thread.c
+│   ├── memory.c
+│   └── memory.h
 ├── lib
 │   ├── kernel
 │   │   ├── bitmap.c
@@ -57,7 +43,23 @@
 │   ├── stdint.h
 │   ├── stdtype.h
 │   ├── string.c
-│   └── string.h
+│   ├── string.h
+│   └── user
+│       ├── syscall.c
+│       └── syscall.h
 ├── link.script
+├── thread
+│   ├── switch.S
+│   ├── sync.c
+│   ├── sync.h
+│   ├── thread.c
+│   └── thread.h
+├── userprog
+│   ├── process.c
+│   ├── process.h
+│   ├── syscall-init.c
+│   ├── syscall-init.h
+│   ├── tss.c
+│   └── tss.h
 └── vdisk.img
 ```

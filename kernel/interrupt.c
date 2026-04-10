@@ -4,7 +4,7 @@
 #include "kernel/io.h"
 #include "kernel/print.h"
 
-#define IDT_DESC_CNT 0x30           //目前总支持的中断数
+#define IDT_DESC_CNT 0x81           //目前总支持的中断数
 #define PIC_M_CTRL 0x20             //主片控制端口
 #define PIC_M_DATA 0x21             //主片数据端口
 #define PIC_S_CTRL 0xA0             //从片控制端口
@@ -29,7 +29,7 @@ char* IntrName[IDT_DESC_CNT];              //用于保存中断的名字
 _intr_handler_ptr IntrHandlerTable[IDT_DESC_CNT];       //定义中断处理程序地址数组
 // 引用 kernel.S 中的 _intr_entry_table, 每个成员为 _intr_handler_ptr 类型(头文件里自定义的void*)
 extern _intr_handler_ptr _intr_entry_table[IDT_DESC_CNT];
-
+extern uint32_t syscall_handler(void);              //单独的系统调用中断处理函数例程
 // 初始化中断控制器
 static void _init_PIC(void)
 {
@@ -69,6 +69,8 @@ static void _init_IDT(void)
     {
         _make_IntrDesc(&IDT[i], IDT_DESC_ATTR_DPL0, _intr_entry_table[i]);
     }
+    // 将0x80中断封装为系统调用
+    _make_IntrDesc(&IDT[IDT_DESC_CNT-1], IDT_DESC_ATTR_DPL3, syscall_handler);
     print("init IDT done\n");
 }
 
