@@ -37,7 +37,7 @@ OBJS = $(BUILD_DIR)/main.o $(BUILD_DIR)/print.o $(BUILD_DIR)/kernel.o $(BUILD_DI
     $(BUILD_DIR)/timer.o $(BUILD_DIR)/debug.o $(BUILD_DIR)/string.o $(BUILD_DIR)/bitmap.o $(BUILD_DIR)/memory.o \
     $(BUILD_DIR)/memfunc.o $(BUILD_DIR)/thread.o $(BUILD_DIR)/list.o $(BUILD_DIR)/switch.o $(BUILD_DIR)/sync.o \
 	$(BUILD_DIR)/console.o $(BUILD_DIR)/keyboard.o $(BUILD_DIR)/ioqueue.o $(BUILD_DIR)/process.o $(BUILD_DIR)/tss.o \
-	$(BUILD_DIR)/syscall.o $(BUILD_DIR)/syscall-init.o
+	$(BUILD_DIR)/syscall.o $(BUILD_DIR)/syscall-init.o $(BUILD_DIR)/stdio.o
 
 # ===== 编译汇编文件
 $(BUILD_DIR)/print.o : lib/kernel/print.S
@@ -105,6 +105,9 @@ $(BUILD_DIR)/syscall-init.o: userprog/syscall-init.c
 	$(CC) $(CFLAGS) $< -o $@
 
 $(BUILD_DIR)/syscall.o: lib/user/syscall.c
+	$(CC) $(CFLAGS) $< -o $@
+
+$(BUILD_DIR)/stdio.o: lib/stdio.c
 	$(CC) $(CFLAGS) $< -o $@
 
 # ===== 链接所有目标文件

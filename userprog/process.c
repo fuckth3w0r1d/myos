@@ -42,7 +42,7 @@ void activate_page_dir(struct _task_struct* p_thread)
         pagedir_phy_addr = vaddr2paddr((uint32_t)p_thread->pgdir);
     }
     // 更新页目录寄存器cr3，使页表生效
-    asm volatile ("movl %0, %%cr3" : : "r"(pagedir_phy_addr) : "memory");
+    asm volatile("movl %0, %%cr3" : : "r"(pagedir_phy_addr) : "memory");
 }
 
 // 创建页目录表，将当前页表的表示内核空间的pde复制，若成功则返回页目录的虚拟地址，否则返回-1
@@ -97,6 +97,7 @@ void process_execute(void* filename, char* threadname)
     create_user_vaddr_bitmap(thread);                             //构建位图，并且写入PCB
     thread_init_stack(thread, process_init, filename);               //这里预留出中断栈和线程栈，然后将还原后的eip指针指向process_init(filename);
     thread->pgdir = create_page_dir();                            //新建用户页目录并且返回页目录首地址
+    _init_chunk_desc(thread->user_chunkdescs);                    // 初始化用户内存块描述符数组
     // 关中断
     _intr_status old_status = _disable_intr();
     // 加入线程队列，此线程将会初始化进程并返回到用户态, 用户进程创建后再调度这个线程就会执行用户进程了

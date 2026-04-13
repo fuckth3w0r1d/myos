@@ -74,6 +74,7 @@ struct _task_struct{
     struct list_elem all_list_tag; // all_list_tag的作用是用于线程队列thread_all_list中的节点
     uint32_t* pgdir;              //进程自己页目录表的虚拟地址
     struct _vm_pool user_vm;       // 用户进程的独立虚拟内存
+    struct _chunk_desc user_chunkdescs[DESC_CNT];
     uint32_t canary;         //栈的边界标记，用于检测栈的溢出
 };
 

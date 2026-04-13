@@ -11,13 +11,12 @@
 #include "process.h"
 #include "user/syscall.h"
 #include "syscall-init.h"
+#include "stdio.h"
 
 void k_thread_a(void*);     //自定义线程函数
 void k_thread_b(void*);
 void u_prog_a(void);
 void u_prog_b(void);
-
-volatile int prog_a_pid = 0, prog_b_pid = 0;
 
 int main(void)
 {
@@ -40,40 +39,60 @@ int main(void)
 void k_thread_a(void* arg)
 {
    (void)arg;
-   while(1)
-   {
-      console_put("p_a:");
-      console_put(prog_a_pid);
-      console_put("p_b:");
-      console_put(prog_b_pid);
-      console_put("\n");
-   }
+   //void* p = alloc_kernel_pages(3);
+   void* p1 = sys_malloc(0x100);
+   void* p2 = sys_malloc(0x101);
+   void* p3 = sys_malloc(0x450);
+   printf(" thread_a malloc addr:0x%x,0x%x,0x%x\n", (int)p1, (int)p2, (int)p3);
+   int cpu_delay = 100000;
+   while(cpu_delay-- > 0);
+   sys_free(p1);
+   sys_free(p2);
+   sys_free(p3);
+   while(1);
 }
 void k_thread_b(void* arg)
 {
    (void)arg;
-   while(1)
-   {
-      console_put("p_a:");
-      console_put(prog_a_pid);
-      console_put("p_b:");
-      console_put(prog_b_pid);
-      console_put("\n");
-   }
+   //void* p = alloc_kernel_pages(3);
+   void* p1 = sys_malloc(0x100);
+   void* p2 = sys_malloc(0x101);
+   void* p3 = sys_malloc(0x450);
+   printf(" thread_b malloc addr:0x%x,0x%x,0x%x\n", (int)p1, (int)p2, (int)p3);
+   int cpu_delay = 100000;
+   while(cpu_delay-- > 0);
+   sys_free(p1);
+   sys_free(p2);
+   sys_free(p3);
+   while(1);
 }
 
 void u_prog_a(void)
 {
-   while(1)
-   {
-      prog_a_pid = getpid();
-   }
+   //while(1);
+   void* p1 = malloc(0x100);
+   void* p2 = malloc(0x101);
+   void* p3 = malloc(0x450);
+   printf(" prog_a malloc addr:0x%x,0x%x,0x%x\n", (int)p1, (int)p2, (int)p3);
+   int cpu_delay = 100000;
+   while(cpu_delay-- > 0);
+   free(p1);
+   free(p2);
+   free(p3);
+   while(1);
 }
 
 void u_prog_b(void)
 {
-   while(1)
-   {
-      prog_b_pid = getpid();
-   }
+   //while(1);
+   void* p1 = malloc(0x100);
+   void* p2 = malloc(0x101);
+   void* p3 = malloc(0x450);
+   printf(" prog_b malloc addr:0x%x,0x%x,0x%x\n", (int)p1, (int)p2, (int)p3);
+   int cpu_delay = 100000;
+   while(cpu_delay-- > 0);
+   free(p1);
+   free(p2);
+   free(p3);
+   while(1);
 }
