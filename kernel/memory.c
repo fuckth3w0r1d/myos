@@ -417,7 +417,7 @@ static void _pt_remove_page(uint32_t vaddr)
 {
     uint32_t* pte = pte_ptr(vaddr);
     *pte &= ~PG_P_1;  //将页表项pte的P位置为0
-    asm volatile("invlpg %0" : : "m"(vaddr) : "memory");  //更新tlb，这里因为以前的页表会存在高速缓存，现在咱们修改了所以需要刷新一下tlb对应的条目
+    asm volatile("invlpg %0" : : "m"(vaddr) : "memory");  //更新tlb，这里因为以前的页表会存在高速缓存，现在修改了所以需要刷新一下tlb对应的条目
 }
 
 // 在虚拟地址池当中释放以_vaddr起始的连续pg_cnt个虚拟地址页
@@ -516,6 +516,12 @@ void sys_free(void* ptr)
         {    //大于1024的内存是直接分配的页
             _vm_free_pages(PF, a, a->cnt);
         }else{                          //小于1024的内存
+            // 防止 double free：已经在 free_list 中的块不允许再次释放
+            ASSERT(!elem_find(&a->desc->free_list, &b->free_elem));
+            if(elem_find(&a->desc->free_list, &b->free_elem))
+            {
+                PANIC("double free!");
+            }
             // 先将内存块回收到free_list
             list_append(&a->desc->free_list, &b->free_elem);
             a->cnt++;

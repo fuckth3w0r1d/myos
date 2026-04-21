@@ -24,6 +24,7 @@ int main(void)
    init();
    // char* strA = " thread_A_";
    // char* strB = " thread_B_";
+   // while(1);
    process_execute(u_prog_a, "user_prog_a");
    process_execute(u_prog_b, "user_prog_b");
    thread_create("testA", 31, k_thread_a, NULL);
