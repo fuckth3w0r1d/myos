@@ -45,9 +45,9 @@ static void _init_PIC(void)
     outb(PIC_S_DATA, 0x02);           //ICW3:设置从片连接到主片的IR2引脚
     outb(PIC_S_DATA, 0x01);           //ICW4:同上
 
-    // 只接受时钟产生的中断和键盘中断
-    outb(PIC_M_DATA, 0xfc);           //OCW1:IRQ0和IRQ1以外全部屏蔽
-    outb(PIC_S_DATA, 0xff);           //OCW1:IRQ8~15全部屏蔽
+    // 只接受时钟产生的中断 键盘中断 硬盘中断
+    outb(PIC_M_DATA, 0xf8);           //OCW1:IRQ0 IRQ1 IRQ2以外全部屏蔽
+    outb(PIC_S_DATA, 0xbf);           //OCW1:IRQ8~15 除了 IRQ14 全部屏蔽
 
     print("pic init done!\n");
 }

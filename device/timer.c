@@ -13,6 +13,7 @@
 #define COUNTER_MODE    2                       //方式2
 #define READ_WRITE_LATCH 3                      //高低均写
 #define PIT_CONTROL_PORT 0x43                   //控制字端口号
+#define mil_seconds_per_intr (1000/IRQ0_FREQUENCY)  //每次时钟中断的毫秒数
 
 uint32_t ticks;         //ticks是内核自开中断开启以来总共的滴答数
 
@@ -41,6 +42,25 @@ static void _timer_intr_handler(void)
     }else{
         cur_thread->ticks--;
     }
+}
+
+// 以tick为单位的sleep，任何时间形式的sleep都会转换此形式
+static void sleep_ticks(uint32_t ticks_to_sleep)
+{
+    uint32_t start_tick = ticks;
+    // 若间隔的ticks数不够便让出CPU
+    while(ticks - start_tick < ticks_to_sleep)
+    {
+        thread_yield();
+    }
+}
+
+// 以毫秒为单位的sleep
+void sleep_ms(uint32_t m_seconds)
+{
+    uint32_t ticks_to_sleep = DIV_ROUND_UP(m_seconds, mil_seconds_per_intr);
+    ASSERT(ticks_to_sleep > 0);
+    sleep_ticks(ticks_to_sleep);
 }
 
 // 初始化PIT8253
