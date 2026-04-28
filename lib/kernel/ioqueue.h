@@ -3,16 +3,17 @@
 #include "stdint.h"
 #include "thread.h"
 #include "sync.h"
+#include "kernel/list.h"
 
 #define bufsize 2048 //兼容管道的一页大小的struct ioqueue
 
 // 环形队列
 struct ioqueue {
     struct lock lock;
-    // 生产者,缓冲区不满时就继续往里面放数据,否则就睡眠,此项记录哪个生产者在此缓冲区上睡眠
-    struct _task_struct* producer;
-    // 消费者,缓冲区不空时就继续从往里面拿数据,
-    struct _task_struct* consumer;
+    // 生产者队列,缓冲区不满时就继续往里面放数据,否则就睡眠,此项记录哪些生产者在此缓冲区上睡眠
+    struct list producers;
+    // 消费者队列,缓冲区不空时就继续从往里面拿数据,此项记录哪些消费者在此缓冲区上睡眠
+    struct list consumers;
     char buf[bufsize];			    // 缓冲区大小
     int32_t head;			    // 队首,数据往队首处写入
     int32_t tail;			    // 队尾,数据从队尾处读出
