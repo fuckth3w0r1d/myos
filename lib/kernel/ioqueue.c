@@ -32,11 +32,13 @@ bool ioq_empty(struct ioqueue* ioq)
 }
 
 // 使当前生产者或消费者在此缓冲区上等待
-static void ioq_wait(struct _task_struct** waiter)
+static void ioq_wait(struct _task_struct** waiter, struct lock* lock)
 {
     ASSERT(waiter != NULL && *waiter == NULL);
     *waiter = running_thread();
+    lock_release(lock);
     thread_block(TASK_BLOCKED);
+    lock_acquire(lock);
 }
 
 // 唤醒waiter
@@ -56,7 +58,7 @@ char ioq_getchar(struct ioqueue* ioq)
     // 若缓冲区(队列)为空,把消费者ioq->consumer记为当前线程自己等待缓冲区
     while(ioq_empty(ioq))
     {
-        ioq_wait(&ioq->consumer);
+        ioq_wait(&ioq->consumer, &ioq->lock);
     }
     char byte = ioq->buf[ioq->head];	  // 从缓冲区中取出
     ioq->head = next_pos(ioq->head);	  // 把读游标移到下一位置
@@ -73,7 +75,7 @@ void ioq_putchar(struct ioqueue* ioq, char byte)
     // 若缓冲区(队列)已经满了,把生产者ioq->producer记为自己等待缓冲区
     while(ioq_full(ioq))
     {
-        ioq_wait(&ioq->producer);
+        ioq_wait(&ioq->producer, &ioq->lock);
     }
     ioq->buf[ioq->tail] = byte;      // 把字节放入缓冲区中
     ioq->tail = next_pos(ioq->tail); // 把写游标移到下一位置
