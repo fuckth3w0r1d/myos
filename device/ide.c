@@ -22,7 +22,7 @@
 #define reg_lba_h(channel)  (channel->port_base + 5)
 #define reg_dev(channel)  (channel->port_base + 6)
 #define reg_status(channel)  (channel->port_base + 7)
-#define reg_cmd(channle)    (reg_status(channel))
+#define reg_cmd(channel)    (reg_status(channel))
 #define reg_alt_status(channel)     (channel->port_base + 0x206)
 #define reg_ctl(channel)    reg_alt_status(channel)
 
@@ -138,14 +138,15 @@ static bool busy_wait(struct disk* hd)
 {
     struct ide_channel* channel = hd->my_channel;
     uint16_t time_limit = 30 * 1000;
-    while(time_limit -= 10 >= 0)
+    while(time_limit > 0)
     {
-        if(!(inb(reg_status(channel)) & BIT_STAT_BSY))
+        uint8_t status = inb(reg_alt_status(channel));
+        if(!(status & BIT_STAT_BSY))
         {    //如果bsy为0就表示不忙
-            return (inb(reg_status(channel)) & BIT_STAT_DRQ);     //DRQ为1表示硬盘已经准备好了数据
-        }else{
-            sleep_ms(10);
+            return (status & BIT_STAT_DRQ);     //DRQ为1表示硬盘已经准备好了数据
         }
+        sleep_ms(10);
+        time_limit -= 10;
     }
     return false;
 }
@@ -172,18 +173,24 @@ void ide_read(struct disk* hd, uint32_t lba, void* buf, uint32_t sec_cnt)
         set_sector_args(hd, lba + secs_done, secs_op);
         // 执行的命令写入reg_cmd寄存器
         send_cmd_to_channel(hd->my_channel, CMD_READ_SECTOR);   //准备开始读数据
-        // 在硬盘已经开始工作后才能阻塞自己，现在已经开始工作了，所以将自己阻塞
-        // 等待硬盘完成读操作后通过中断处理程序将自己唤醒
-        sema_down(&hd->my_channel->disk_done);
-        // 检测硬盘状态是否可读,醒来后执行下面代码
-        if(!busy_wait(hd))
+        uint32_t sec_idx = 0;
+        while(sec_idx < secs_op)
         {
-            char error[64];
-            sprintf(error, "%s read sector %d failed !!!!\n", hd->name, lba);
-            PANIC(error);
+            // PIO 读每个扇区都要等待一次 DRQ/IRQ，再搬运一个扇区的数据
+            sema_down(&hd->my_channel->disk_done);
+            if(!busy_wait(hd))
+            {
+                char error[64];
+                sprintf(error, "%s read sector %d failed !!!!\n", hd->name, lba + secs_done + sec_idx);
+                PANIC(error);
+            }
+            if(sec_idx + 1 < secs_op)
+            {
+                hd->my_channel->expection_intr = true;
+            }
+            read_from_sector(hd, (void*)((uint32_t)buf + (secs_done + sec_idx) * 512), 1);
+            sec_idx++;
         }
-        // 把数据从硬盘的缓冲区但中读出
-        read_from_sector(hd, (void*)((uint32_t)buf + secs_done * 512), secs_op);
         secs_done += secs_op;
     }
     lock_release(&hd->my_channel->lock);
@@ -195,7 +202,6 @@ void ide_write(struct disk* hd, uint32_t lba, void* buf, uint32_t sec_cnt)
     ASSERT(lba <= max_lba);
     ASSERT(sec_cnt > 0);
     lock_acquire(&hd->my_channel->lock);
-
     // 先选择操作的硬盘
     select_disk(hd);
     uint32_t secs_op;             //每次操作的扇区数
@@ -212,17 +218,21 @@ void ide_write(struct disk* hd, uint32_t lba, void* buf, uint32_t sec_cnt)
         set_sector_args(hd, lba + secs_done, secs_op);
         // 执行的命令写入reg_cmd寄存器
         send_cmd_to_channel(hd->my_channel, CMD_WRITE_SECTOR);   //准备开始写数据
-        // 检测硬盘状态是否可写,醒来后执行下面代码
-        if(!busy_wait(hd))
+        uint32_t sec_idx = 0;
+        while(sec_idx < secs_op)
         {
-            char error[64];
-            sprintf(error, "%s write sector %d failed !!!!\n", hd->name, lba);
-            PANIC(error);
+            // PIO 写每个扇区都要等待 DRQ，写入后等待对应完成中断
+            if(!busy_wait(hd))
+            {
+                char error[64];
+                sprintf(error, "%s write sector %d failed !!!!\n", hd->name, lba + secs_done + sec_idx);
+                PANIC(error);
+            }
+            hd->my_channel->expection_intr = true;
+            write_to_sector(hd, (void*)((uint32_t)buf + (secs_done + sec_idx) * 512), 1);
+            sema_down(&hd->my_channel->disk_done);
+            sec_idx++;
         }
-        // 把数据从硬盘的缓冲区但中读出
-        write_to_sector(hd, (void*)((uint32_t)buf + secs_done * 512), secs_op);
-        // 在硬盘响应期间阻塞自己
-        sema_down(&hd->my_channel->disk_done);
         secs_done += secs_op;
     }
     lock_release(&hd->my_channel->lock);
@@ -239,9 +249,9 @@ void _hd_intr_handler(uint8_t irq_no)
     {   //这里若判断为true，则说明是我们自己设置的，是需要处理的中断
         channel->expection_intr = false;
         sema_up(&channel->disk_done);
-        // 读取状态寄存器使得硬盘控制器认为此次的中断已被处理，从而硬盘可以继续执行新的读写
-        inb(reg_status(channel));
     }
+    // 读取状态寄存器使得硬盘控制器认为此次的中断已被处理，从而硬盘可以继续执行新的读写
+    inb(reg_status(channel));
 }
 
 
@@ -325,6 +335,7 @@ static void scan_partition(struct disk* hd, uint32_t ext_lba)
                 l_no++;
                 if(l_no >= 8)
                 {  //这里限制了只支持8个
+                    sys_free(bs);
                     return;
                 }
             }
