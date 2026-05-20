@@ -70,6 +70,7 @@ struct _task_struct{
     uint8_t priority;             //线程优先级
     uint8_t ticks;                //每次在处理器上执行的tick数
     uint32_t elapsed_ticks;       // 此任务自从上cpu运行后至今占用了多少tick数
+    int32_t fd_table[MAX_FILES_OPEN_PER_PROC]; // 文件描述符数组
     struct list_elem general_tag; // general_tag的作用是用于线程在一般的队列中的结点
     struct list_elem all_list_tag; // all_list_tag的作用是用于线程队列thread_all_list中的节点
     uint32_t* pgdir;              //进程自己页目录表的虚拟地址

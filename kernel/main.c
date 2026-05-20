@@ -12,6 +12,7 @@
 #include "user/syscall.h"
 #include "syscall-init.h"
 #include "stdio.h"
+#include "fs.h"
 
 void k_thread_a(void*);     //自定义线程函数
 void k_thread_b(void*);
@@ -24,12 +25,15 @@ int main(void)
    init();
    // char* strA = " thread_A_";
    // char* strB = " thread_B_";
-   // while(1);
-   process_execute(u_prog_a, "user_prog_a");
-   process_execute(u_prog_b, "user_prog_b");
-   thread_create("testA", 31, k_thread_a, NULL);
-   thread_create("testB", 31, k_thread_b, NULL);
+   // process_execute(u_prog_a, "user_prog_a");
+   // process_execute(u_prog_b, "user_prog_b");
+   // thread_create("testA", 31, k_thread_a, NULL);
+   // thread_create("testB", 31, k_thread_b, NULL);
    _enable_intr();
+   uint32_t fd = sys_open("/file1", O_CREAT);
+   printf("fd:%d\n", fd);
+   sys_close(fd);
+   printf("%d closed now\n", fd);
    while(1);
    // {
    //    console_put("main thread");

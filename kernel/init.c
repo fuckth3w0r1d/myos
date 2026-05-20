@@ -9,6 +9,7 @@
 #include "tss.h"
 #include "syscall-init.h"
 #include "ide.h"
+#include "fs.h"
 
 void init(void)
 {
@@ -22,5 +23,6 @@ void init(void)
     _init_tss();            // 初始化 tss
     _init_syscall();         // 初始化 syscall
     _init_ide();            // 初始化硬盘通道
+    _init_filesys();        // 初始化文件系统
     print("init all done\n");
 }
