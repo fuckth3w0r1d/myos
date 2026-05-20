@@ -1,4 +1,4 @@
-#ifndef __LIB__KERNEL_IO_H
+#ifndef __LIB_KERNEL_IO_H
 #define __LIB_KERNEL_IO_H
 #include "stdint.h"
 
@@ -13,7 +13,7 @@ static inline void outsw(uint16_t port, const void* addr, uint32_t word_cnt)
 {
     asm volatile("cld\n\t"
                   "rep outsw"
-                  :"+S"(addr), "+cx"(word_cnt)
+                  :"+S"(addr), "+c"(word_cnt)
                   :"d"(port)
                   :"memory");
     //output为addr和word_cnt,约束分别为si和cx，input包含前两位和后面的port，约束为dx
