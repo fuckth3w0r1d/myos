@@ -414,4 +414,11 @@ p_mode_start:
     add eax, 0x1000 ; 下一张页表
     loop .create_kernel_pde
     ; 至此为内核地址空间1GB范围建立了页目录项
+
+    ; ==== 清零预分配的254个页表，防止随机垃圾数据导致非法映射
+    mov ecx, 254 * 1024               ; 254页 × 每页1024个dword
+    mov edi, PAGE_DIR_TABLE_POS + 0x2000  ; 从第二张页表(物理0x102000)开始
+    xor eax, eax
+    cld
+    rep stosd
     ret
