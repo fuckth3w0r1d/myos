@@ -30,8 +30,9 @@ int main(void)
    // thread_create("testA", 31, k_thread_a, NULL);
    // thread_create("testB", 31, k_thread_b, NULL);
    _enable_intr();
-   uint32_t fd = sys_open("/file1", O_CREAT);
+   uint32_t fd = sys_open("/file1", O_RDWR);
    printf("fd:%d\n", fd);
+   sys_write(fd, "hello,world\n", 12);
    sys_close(fd);
    printf("%d closed now\n", fd);
    while(1);
