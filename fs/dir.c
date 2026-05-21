@@ -156,9 +156,7 @@ bool sync_dir_entry(struct dir* parent_dir, struct dir_entry* p_de, void* io_buf
             // 每分配一次要记得同步一次block_bitmap
             block_bitmap_idx = block_lba - cur_part->sb->data_start_lba;
             ASSERT(block_bitmap_idx != -1);
-            kprintf("sssssssssssssssssssss\n");
             bitmap_sync(cur_part, block_bitmap_idx, BLOCK_BITMAP);
-            kprintf("sssssssssssssssssssss\n");
             block_bitmap_idx = -1;
             // 下面有三种未分配的情况：
             if(block_idx < 12)
